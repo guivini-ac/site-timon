@@ -1,0 +1,243 @@
+@import url('https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,300;1,400;1,500;1,600;1,700;1,800&family=Roboto+Condensed:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Variáveis CSS customizadas seguindo o padrão do design system de Timon */
+@layer base {
+  :root {
+    --font-size: 14px;
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 215 82% 34%; /* Tory Blue #144c9c */
+    --primary-foreground: 210 40% 98%;
+    --secondary: 126 73% 33%; /* Green #228B22 */
+    --secondary-foreground: 0 0% 100%;
+    --muted: 210 40% 94%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96%;
+    --accent-foreground: 215 82% 34%;
+    --destructive: 0 72% 51%; /* Red #DC3545 */
+    --destructive-foreground: 210 40% 98%;
+    --border: 0 0% 0% / 0.1;
+    --input: transparent;
+    --input-background: 210 17% 95%;
+    --switch-background: 215 8% 79%;
+    --ring: 215.4 16.3% 46.9%;
+    --radius: 0.5rem;
+
+    /* Cores específicas do município */
+    --timon-blue: 215 82% 34%;
+    --timon-green: 126 73% 33%;
+    --timon-gray: 211 13% 48%;
+    --success: 123 46% 34%;
+    --warning: 45 100% 51%;
+    --error: 354 77% 56%;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 84% 4.9%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+
+  /* Tipografia customizada */
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Roboto Condensed', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+
+  h1 {
+    @apply text-4xl font-bold leading-tight;
+  }
+
+  h2 {
+    @apply text-3xl font-bold leading-tight;
+  }
+
+  h3 {
+    @apply text-2xl font-semibold leading-snug;
+  }
+
+  h4 {
+    @apply text-xl font-semibold leading-snug;
+  }
+
+  h5 {
+    @apply text-lg font-medium leading-normal;
+  }
+
+  h6 {
+    @apply text-base font-medium leading-normal;
+  }
+
+  p {
+    @apply text-base leading-relaxed;
+  }
+}
+
+/* Estilos de acessibilidade */
+@layer utilities {
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .skip-link {
+    @apply sr-only focus:not-sr-only focus:absolute focus:top-0 focus:left-0 focus:z-50 focus:px-4 focus:py-2 focus:bg-primary focus:text-primary-foreground focus:text-sm focus:font-medium;
+  }
+
+  /* Estados de foco para navegação por teclado */
+  .focus\:outline-accessibility:focus {
+    outline: 3px solid theme(colors.yellow.400);
+    outline-offset: 2px;
+  }
+
+  /* Alto contraste */
+  .high-contrast {
+    filter: contrast(150%);
+  }
+
+  /* Redução de movimento */
+  @media (prefers-reduced-motion: reduce) {
+    * {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+/* Componentes específicos */
+@layer components {
+  .btn-primary {
+    @apply bg-primary text-primary-foreground hover:bg-primary/90 focus:outline-accessibility;
+  }
+
+  .btn-secondary {
+    @apply bg-secondary text-secondary-foreground hover:bg-secondary/90 focus:outline-accessibility;
+  }
+
+  .card-hover {
+    @apply transition-all duration-200 hover:shadow-lg hover:-translate-y-1;
+  }
+
+  .nav-link {
+    @apply relative text-foreground hover:text-primary transition-colors duration-200;
+  }
+
+  .nav-link::after {
+    content: '';
+    @apply absolute bottom-0 left-0 w-0 h-0.5 bg-primary transition-all duration-300;
+  }
+
+  .nav-link:hover::after,
+  .nav-link.active::after {
+    @apply w-full;
+  }
+
+  /* Estilos para componentes de formulário */
+  .form-input {
+    @apply w-full px-3 py-2 border border-border rounded-md bg-input-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent;
+  }
+
+  .form-label {
+    @apply text-sm font-medium text-foreground;
+  }
+
+  .form-error {
+    @apply text-sm text-destructive mt-1;
+  }
+
+  /* Loading states */
+  .loading {
+    @apply animate-pulse;
+  }
+
+  .shimmer {
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+  }
+
+  @keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+}
+
+/* Estilos para elementos específicos do governo */
+.brasao-container {
+  @apply flex items-center justify-center p-4 rounded-lg bg-card shadow-sm;
+}
+
+.symbol-card {
+  @apply bg-card border border-border rounded-lg p-6 hover:shadow-md transition-shadow duration-200;
+}
+
+.hero-section {
+  background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--secondary)) 100%);
+}
+
+.government-seal {
+  @apply drop-shadow-md;
+}
+
+/* Estilos de acessibilidade avançados */
+.keyboard-navigation *:focus {
+  outline: 3px solid #FFC107 !important;
+  outline-offset: 2px !important;
+  box-shadow: 0 0 0 3px rgba(255, 193, 7, 0.3) !important;
+}
+
+/* Remove outline quando não usando teclado */
+:not(.keyboard-navigation) *:focus {
+  outline: none;
+}
+
+html {
+  font-size: var(--font-size, 14px);
+  scroll-behavior: smooth;
+}
+
+/* VLibras widget customization */
+[vw] {
+  z-index: 9999 !important;
+}

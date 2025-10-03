@@ -1,0 +1,453 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User Management
+model User {
+  id                    String    @id @default(cuid())
+  name                  String
+  email                 String    @unique
+  emailVerified         DateTime?
+  image                 String?
+  passwordHash          String?
+  status                UserStatus @default(ACTIVE)
+  twoFactorSecret       String?
+  lastLoginAt           DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  // Relations
+  accounts              Account[]
+  sessions              Session[]
+  userRoles             UserRole[]
+  createdMedia          Media[]   @relation("MediaCreatedBy")
+  createdPosts          Post[]    @relation("PostAuthor")
+  createdPages          Page[]    @relation("PageCreatedBy")
+  createdEntries        ContentEntry[] @relation("EntryCreatedBy")
+  auditLogs             AuditLog[]
+  postRevisions         PostRevision[]
+  pageRevisions         PageRevision[]
+  contentRevisions      ContentRevision[]
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// RBAC System
+model Role {
+  id          String @id @default(cuid())
+  name        String @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  userRoles   UserRole[]
+  permissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id         String @id @default(cuid())
+  action     String
+  subject    String
+  conditions Json?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  rolePermissions RolePermission[]
+
+  @@unique([action, subject])
+  @@map("permissions")
+}
+
+model UserRole {
+  userId String
+  roleId String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@map("user_roles")
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  createdAt    DateTime @default(now())
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+// Media Management
+model Media {
+  id           String   @id @default(cuid())
+  filename     String
+  originalName String
+  mimeType     String
+  size         Int
+  width        Int?
+  height       Int?
+  alt          String?
+  title        String?
+  description  String?
+  folder       String?
+  url          String
+  variants     Json     @default("[]") // Array of MediaVariant
+  metadata     Json?    // EXIF and other metadata
+  createdBy    String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation("MediaCreatedBy", fields: [createdBy], references: [id], onDelete: Cascade)
+
+  // Relations where media is used
+  postCovers Post[] @relation("PostCover")
+  pageImages Page[] @relation("PageMedia")
+
+  @@map("media")
+}
+
+// Taxonomy System
+model Taxonomy {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  title       Json     // i18n object
+  type        TaxonomyType
+  description Json?    // i18n object
+  parentId    String?
+  order       Int      @default(0)
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  parent   Taxonomy?  @relation("TaxonomyHierarchy", fields: [parentId], references: [id])
+  children Taxonomy[] @relation("TaxonomyHierarchy")
+
+  // Many-to-many with posts
+  posts Post[] @relation("PostTaxonomies")
+
+  @@map("taxonomies")
+}
+
+// Content Types
+model Post {
+  id           String      @id @default(cuid())
+  title        Json        // i18n object
+  slug         String      @unique
+  status       ContentStatus @default(DRAFT)
+  excerpt      Json?       // i18n object
+  content      Json        // Rich text content (TipTap JSON)
+  coverId      String?
+  authorId     String
+  publishedAt  DateTime?
+  scheduledAt  DateTime?
+  seoTitle     Json?       // i18n object
+  seoDescription Json?     // i18n object
+  seoKeywords  String[]    @default([])
+  ogImage      String?
+  metadata     Json?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  cover      Media?     @relation("PostCover", fields: [coverId], references: [id])
+  author     User       @relation("PostAuthor", fields: [authorId], references: [id])
+  taxonomies Taxonomy[] @relation("PostTaxonomies")
+  revisions  PostRevision[]
+
+  @@map("posts")
+}
+
+model PostRevision {
+  id        String   @id @default(cuid())
+  postId    String
+  version   Int
+  title     Json
+  content   Json
+  status    ContentStatus
+  createdBy String
+  comment   String?
+  createdAt DateTime @default(now())
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [createdBy], references: [id])
+
+  @@unique([postId, version])
+  @@map("post_revisions")
+}
+
+model Page {
+  id             String        @id @default(cuid())
+  title          Json          // i18n object
+  slug           String        @unique
+  status         ContentStatus @default(DRAFT)
+  template       String?
+  blocks         Json          @default("[]") // Page builder blocks
+  seoTitle       Json?         // i18n object
+  seoDescription Json?         // i18n object
+  seoKeywords    String[]      @default([])
+  ogImage        String?
+  metadata       Json?
+  createdBy      String
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  creator   User           @relation("PageCreatedBy", fields: [createdBy], references: [id])
+  media     Media[]        @relation("PageMedia")
+  revisions PageRevision[]
+
+  @@map("pages")
+}
+
+model PageRevision {
+  id        String   @id @default(cuid())
+  pageId    String
+  version   Int
+  title     Json
+  blocks    Json
+  status    ContentStatus
+  createdBy String
+  comment   String?
+  createdAt DateTime @default(now())
+
+  page Page @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [createdBy], references: [id])
+
+  @@unique([pageId, version])
+  @@map("page_revisions")
+}
+
+// Menu System
+model Menu {
+  id        String     @id @default(cuid())
+  name      String
+  location  String     @unique
+  items     Json       @default("[]") // Array of MenuItem
+  metadata  Json?
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@map("menus")
+}
+
+// Dynamic Collections
+model Collection {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  name        Json     // i18n object
+  description Json?    // i18n object
+  schema      Json     // JSON Schema for entries
+  settings    Json     @default("{}") // Collection settings
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  entries ContentEntry[]
+
+  @@map("collections")
+}
+
+model ContentEntry {
+  id          String        @id @default(cuid())
+  collection  String
+  status      ContentStatus @default(DRAFT)
+  data        Json          // Entry data based on collection schema
+  publishedAt DateTime?
+  scheduledAt DateTime?
+  createdBy   String
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  collectionRef Collection @relation(fields: [collection], references: [key], onDelete: Cascade)
+  creator       User       @relation("EntryCreatedBy", fields: [createdBy], references: [id])
+  revisions     ContentRevision[]
+
+  @@map("content_entries")
+}
+
+model ContentRevision {
+  id        String   @id @default(cuid())
+  entryId   String
+  version   Int
+  data      Json
+  createdBy String
+  comment   String?
+  createdAt DateTime @default(now())
+
+  entry ContentEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  user  User         @relation(fields: [createdBy], references: [id])
+
+  @@unique([entryId, version])
+  @@map("content_revisions")
+}
+
+// System Models
+model Webhook {
+  id               String   @id @default(cuid())
+  name             String
+  url              String
+  secret           String?
+  events           String[] @default([])
+  headers          Json?    @default("{}")
+  enabled          Boolean  @default(true)
+  lastTriggeredAt  DateTime?
+  lastStatus       Int?
+  retryCount       Int      @default(0)
+  maxRetries       Int      @default(3)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@map("webhooks")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String
+  action    String
+  entity    String
+  entityId  String
+  diff      Json?
+  ip        String?
+  userAgent String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([entity, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model ApiKey {
+  id          String     @id @default(cuid())
+  name        String
+  key         String     @unique
+  scopes      String[]   @default([])
+  permissions Json?      // Additional permissions
+  lastUsedAt  DateTime?
+  expiresAt   DateTime?
+  enabled     Boolean    @default(true)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@map("api_keys")
+}
+
+model PreviewToken {
+  id          String   @id @default(cuid())
+  token       String   @unique
+  contentType String
+  contentId   String
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+
+  @@index([token])
+  @@index([expiresAt])
+  @@map("preview_tokens")
+}
+
+// Job Queue (optional, pode usar BullMQ diretamente)
+model Job {
+  id          String    @id @default(cuid())
+  type        String
+  data        Json
+  status      JobStatus @default(PENDING)
+  attempts    Int       @default(0)
+  maxAttempts Int       @default(3)
+  error       String?
+  result      Json?
+  scheduledAt DateTime?
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([type])
+  @@index([status])
+  @@index([scheduledAt])
+  @@map("jobs")
+}
+
+// Enums
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  PENDING
+  SUSPENDED
+}
+
+enum ContentStatus {
+  DRAFT
+  REVIEW
+  SCHEDULED
+  PUBLISHED
+  ARCHIVED
+}
+
+enum TaxonomyType {
+  CATEGORY
+  TAG
+  CUSTOM
+}
+
+enum JobStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+}

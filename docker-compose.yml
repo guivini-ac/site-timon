@@ -1,0 +1,194 @@
+version: '3.9'
+
+networks:
+  timon:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  minio_data:
+  letsencrypt:
+  backend_node_modules:
+  portal_node_modules:
+  admin_node_modules:
+  portal_next:
+  admin_next:
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: timon-postgres
+    environment:
+      POSTGRES_DB: app
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - timon
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: minio/minio:RELEASE.2024-05-28T17-19-04Z
+    container_name: timon-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - timon
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  minio-setup:
+    image: minio/mc:RELEASE.2024-05-28T13-43-41Z
+    container_name: timon-minio-setup
+    depends_on:
+      minio:
+        condition: service_healthy
+    networks:
+      - timon
+    entrypoint: >
+      /bin/sh -c "
+      /usr/bin/mc alias set myminio http://minio:9000 minioadmin minioadmin;
+      /usr/bin/mc mb myminio/app-bucket --ignore-existing;
+      /usr/bin/mc anonymous set public myminio/app-bucket;
+      exit 0;
+      "
+
+  backend:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+      target: development
+    container_name: timon-backend
+    environment:
+      NODE_ENV: development
+      API_PORT: 3000
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/app
+      S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY: minioadmin
+      S3_SECRET_KEY: minioadmin
+      S3_BUCKET: app-bucket
+      S3_REGION: us-east-1
+      S3_FORCE_PATH_STYLE: "true"
+      JWT_SECRET: super-secret-jwt-key-for-development
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@timon.ma.gov.br}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-admin@123}
+    ports:
+      - "3001:3000"
+    volumes:
+      - ./:/workspace
+      - backend_node_modules:/workspace/node_modules
+    networks:
+      - timon
+    depends_on:
+      db:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.backend.rule=Host(`${API_HOST:-api.localhost}`)"
+      - "traefik.http.routers.backend.entrypoints=web"
+      - "traefik.http.services.backend.loadbalancer.server.port=3000"
+      - "traefik.docker.network=timon"
+
+  portal:
+    build:
+      context: .
+      dockerfile: apps/frontend/portal/Dockerfile
+      target: development
+    container_name: timon-portal
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      NEXT_PUBLIC_API_BASE_URL: http://backend:3000
+      NEXT_PUBLIC_CDN_BASE_URL: http://minio:9000/app-bucket
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./:/workspace
+      - portal_node_modules:/workspace/node_modules
+      - portal_next:/workspace/apps/frontend/portal/.next
+    networks:
+      - timon
+    depends_on:
+      - backend
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.portal.rule=Host(`${PORTAL_HOST:-portal.localhost}`)"
+      - "traefik.http.routers.portal.entrypoints=web"
+      - "traefik.http.services.portal.loadbalancer.server.port=3000"
+      - "traefik.docker.network=timon"
+
+  admin:
+    build:
+      context: .
+      dockerfile: apps/frontend/admin/Dockerfile
+      target: development
+    container_name: timon-admin
+    environment:
+      NODE_ENV: development
+      PORT: 3100
+      NEXT_PUBLIC_API_BASE_URL: http://backend:3000
+      NEXT_PUBLIC_CDN_BASE_URL: http://minio:9000/app-bucket
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./:/workspace
+      - admin_node_modules:/workspace/node_modules
+      - admin_next:/workspace/apps/frontend/admin/.next
+    networks:
+      - timon
+    depends_on:
+      - backend
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.admin.rule=Host(`${ADMIN_HOST:-admin.localhost}`)"
+      - "traefik.http.routers.admin.entrypoints=web"
+      - "traefik.http.services.admin.loadbalancer.server.port=3100"
+      - "traefik.docker.network=timon"
+
+  traefik:
+    image: traefik:v3.1
+    container_name: timon-traefik
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.le.acme.tlschallenge=true"
+      - "--certificatesresolvers.le.acme.email=admin@timon.ma.gov.br"
+      - "--certificatesresolvers.le.acme.storage=/letsencrypt/acme.json"
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - letsencrypt:/letsencrypt
+    networks:
+      - timon
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik.rule=Host(`${TRAEFIK_HOST:-traefik.localhost}`)"
+      - "traefik.http.routers.traefik.service=api@internal"
+      - "traefik.http.services.traefik.loadbalancer.server.port=8080"
+      - "traefik.docker.network=timon"

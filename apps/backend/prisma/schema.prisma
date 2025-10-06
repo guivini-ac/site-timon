@@ -1,0 +1,397 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id         String   @id @default(cuid())
+  email      String   @unique
+  name       String
+  password   String
+  role       UserRole @default(VIEWER)
+  active     Boolean  @default(true)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  // Relations
+  pages         Page[]
+  events        Event[]
+  services      Service[]
+  galleries     Gallery[]
+  forms         Form[]
+  secretarias   Secretaria[]
+  media_files   MediaFile[]
+  posts         Post[]
+  tourismPoints TourismPoint[]
+  permissions   UserPermission[]
+
+  @@map("users")
+}
+
+model Page {
+  id              String      @id @default(cuid())
+  title           String
+  slug            String      @unique
+  content         String      @db.Text
+  excerpt         String?     @db.Text
+  featured_image  String?
+  status          PageStatus  @default(DRAFT)
+  seo_title       String?
+  seo_description String?     @db.Text
+  created_at      DateTime    @default(now())
+  updated_at      DateTime    @updatedAt
+  
+  // Relations
+  author_id String
+  author    User   @relation(fields: [author_id], references: [id])
+
+  @@map("pages")
+}
+
+model Post {
+  id              String      @id @default(cuid())
+  title           String
+  slug            String      @unique
+  content         String      @db.Text
+  excerpt         String?     @db.Text
+  featured_image  String?
+  status          PostStatus  @default(DRAFT)
+  publish_at      DateTime?
+  seo_title       String?
+  seo_description String?     @db.Text
+  views           Int         @default(0)
+  created_at      DateTime    @default(now())
+  updated_at      DateTime    @updatedAt
+
+  // Relations
+  author_id String
+  author    User           @relation(fields: [author_id], references: [id])
+  categories PostCategory[]
+  tags       PostTag[]
+
+  @@map("posts")
+}
+
+model PostCategory {
+  post_id     String
+  category_id String
+
+  post     Post     @relation(fields: [post_id], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [category_id], references: [id], onDelete: Cascade)
+
+  @@id([post_id, category_id])
+  @@map("post_categories")
+}
+
+model PostTag {
+  post_id String
+  tag_id  String
+
+  post Post @relation(fields: [post_id], references: [id], onDelete: Cascade)
+  tag  Tag  @relation(fields: [tag_id], references: [id], onDelete: Cascade)
+
+  @@id([post_id, tag_id])
+  @@map("post_tags")
+}
+
+model Category {
+  id          String        @id @default(cuid())
+  name        String
+  slug        String        @unique
+  description String?       @db.Text
+  type        CategoryType
+  created_at  DateTime      @default(now())
+  updated_at  DateTime      @updatedAt
+
+  // Relations
+  posts PostCategory[]
+
+  @@map("categories")
+}
+
+model Tag {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  description String?  @db.Text
+  type        TagType
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  // Relations
+  posts PostTag[]
+
+  @@map("tags")
+}
+
+model Slide {
+  id           String   @id @default(cuid())
+  title        String
+  subtitle     String?
+  description  String?  @db.Text
+  image        String
+  link         String?
+  button_text  String?
+  order        Int      @default(0)
+  active       Boolean  @default(true)
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  @@map("slides")
+}
+
+model Event {
+  id          String      @id @default(cuid())
+  title       String
+  description String      @db.Text
+  start_date  DateTime
+  end_date    DateTime?
+  location    String?
+  image       String?
+  category    String?
+  status      EventStatus @default(DRAFT)
+  created_at  DateTime    @default(now())
+  updated_at  DateTime    @updatedAt
+
+  // Relations
+  author_id String
+  author    User   @relation(fields: [author_id], references: [id])
+
+  @@map("events")
+}
+
+model Service {
+  id                     String   @id @default(cuid())
+  title                  String
+  description            String   @db.Text
+  category               String
+  requirements           String[] @default([])
+  documents              String[] @default([])
+  process_time           String?
+  cost                   String?
+  responsible_department String?
+  contact_info           String?
+  online_url             String?
+  active                 Boolean  @default(true)
+  created_at             DateTime @default(now())
+  updated_at             DateTime @updatedAt
+
+  // Relations
+  author_id String
+  author    User   @relation(fields: [author_id], references: [id])
+
+  @@map("services")
+}
+
+model Gallery {
+  id          String   @id @default(cuid())
+  title       String
+  description String?  @db.Text
+  category    String?
+  active      Boolean  @default(true)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  // Relations
+  author_id String
+  author    User           @relation(fields: [author_id], references: [id])
+  images    GalleryImage[]
+
+  @@map("galleries")
+}
+
+model GalleryImage {
+  id      String @id @default(cuid())
+  url     String
+  alt     String
+  caption String?
+  order   Int    @default(0)
+
+  // Relations
+  gallery_id String
+  gallery    Gallery @relation(fields: [gallery_id], references: [id], onDelete: Cascade)
+
+  @@map("gallery_images")
+}
+
+model Form {
+  id          String       @id @default(cuid())
+  title       String
+  description String?      @db.Text
+  slug        String       @unique
+  fields      Json         @default("[]")
+  settings    Json         @default("{}")
+  active      Boolean      @default(true)
+  created_at  DateTime     @default(now())
+  updated_at  DateTime     @updatedAt
+
+  // Relations
+  author_id    String
+  author       User             @relation(fields: [author_id], references: [id])
+  submissions  FormSubmission[]
+
+  @@map("forms")
+}
+
+model FormSubmission {
+  id           String   @id @default(cuid())
+  data         Json
+  ip_address   String?
+  user_agent   String?
+  submitted_at DateTime @default(now())
+
+  // Relations
+  form_id String
+  form    Form   @relation(fields: [form_id], references: [id], onDelete: Cascade)
+
+  @@map("form_submissions")
+}
+
+model Secretaria {
+  id             String   @id @default(cuid())
+  name           String
+  description    String?  @db.Text
+  secretary_name String?
+  address        String?
+  phone          String?
+  email          String?
+  website        String?
+  image          String?
+  services       String[] @default([])
+  active         Boolean  @default(true)
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  // Relations
+  author_id String
+  author    User   @relation(fields: [author_id], references: [id])
+
+  @@map("secretarias")
+}
+
+model TourismPoint {
+  id           String   @id @default(cuid())
+  name         String
+  slug         String   @unique
+  description  String   @db.Text
+  address      String?
+  latitude     Float?
+  longitude    Float?
+  image        String?
+  gallery      String[] @default([])
+  contact_info String?  @db.Text
+  active       Boolean  @default(true)
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  // Relations
+  author_id String
+  author    User @relation(fields: [author_id], references: [id])
+
+  @@map("tourism_points")
+}
+
+model MediaFile {
+  id            String   @id @default(cuid())
+  filename      String
+  original_name String
+  mimetype      String
+  size          Int
+  url           String
+  alt           String?
+  caption       String?
+  folder        String?
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  // Relations
+  uploaded_by String
+  uploader    User   @relation(fields: [uploaded_by], references: [id])
+
+  @@map("media_files")
+}
+
+model Setting {
+  id         String   @id @default(cuid())
+  key        String   @unique
+  value      Json
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@map("settings")
+}
+
+model Permission {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?  @db.Text
+  scopes      String[] @default([])
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  users UserPermission[]
+
+  @@map("permissions")
+}
+
+model UserPermission {
+  user_id       String
+  permission_id String
+  granted_at    DateTime @default(now())
+
+  user       User       @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permission_id], references: [id], onDelete: Cascade)
+
+  @@id([user_id, permission_id])
+  @@map("user_permissions")
+}
+
+// Enums
+enum UserRole {
+  ADMIN
+  EDITOR
+  VIEWER
+}
+
+enum PostStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum PageStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+  CANCELLED
+}
+
+enum CategoryType {
+  POST
+  SERVICE
+  EVENT
+  PAGE
+  TOURISM
+  GALLERY
+}
+
+enum TagType {
+  POST
+  SERVICE
+  EVENT
+  PAGE
+  TOURISM
+  GALLERY
+}

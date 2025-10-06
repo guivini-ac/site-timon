@@ -40,6 +40,14 @@ async function bootstrap() {
     .addTag('forms', 'Formulários dinâmicos')
     .addTag('secretarias', 'Secretarias municipais')
     .addTag('services', 'Serviços públicos')
+    .addTag('events', 'Eventos e agenda pública')
+    .addTag('slides', 'Banners e destaques do portal')
+    .addTag('galleries', 'Galerias públicas de mídia')
+    .addTag('categories', 'Categorias de conteúdo')
+    .addTag('tags', 'Etiquetas para classificação')
+    .addTag('tourism-points', 'Pontos turísticos de Timon')
+    .addTag('permissions', 'Controle de permissões granulares')
+    .addTag('settings', 'Configurações gerais, SEO e aparência')
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
